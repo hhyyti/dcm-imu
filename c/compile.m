@@ -1,5 +1,5 @@
 %============================================================================
-% Copyright (C) 2015, Heikki Hyyti
+% Copyright (C) 2017, Heikki Hyyti
 %
 % Permission is hereby granted, free of charge, to any person obtaining a
 % copy of this software and associated documentation files (the "Software"),
@@ -23,12 +23,28 @@
 
 disp('Compiling DCM-IMU...');
 mex -lm -I/usr/include/eigen3 -I./DCM_IMU -I/usr/local/matlab/extern/include ...
-    -output ../DCM_IMU_C DCM_IMU/matlabmex.cpp DCM_IMU/DCM_IMU_C.cpp
+    -output ../DCM_IMU_C DCM_IMU/matlabmex.cpp DCM_IMU/DCM_IMU_C.cpp;
 
-disp('Compiling Madgwick AHRS...');
-mex -lm -I/usr/local/matlab/extern/include -I./MadgwickAHRS ...
-    -output ../Madgwick_IMU_C MadgwickAHRS/matlabmex.cpp MadgwickAHRS/MadgwickAHRS.cpp
+disp('Compiling DCM-IMU-uc...');
+mex -lm -I./DCM_IMU_uc -I/usr/local/matlab/extern/include ...
+    -output ../DCM_IMU_uC DCM_IMU_uc/matlabmex.cpp DCM_IMU_uc/DCM_IMU_uC.cpp;
 
-disp('Compiling Mahony AHRS...');
-mex -lm -I/usr/local/matlab/extern/include -I./MahonyAHRS ...
-    -output ../Mahony_IMU_C MahonyAHRS/matlabmex.cpp MahonyAHRS/MahonyAHRS.cpp
+if (exist('MadgwickAHRS/MadgwickAHRS.cpp', 'file') && exist('MadgwickAHRS/MadgwickAHRS.h', 'file'))
+    disp('Compiling Madgwick AHRS...');
+    mex -lm -I/usr/local/matlab/extern/include -I./MadgwickAHRS ...
+        -output ../Madgwick_IMU_C MadgwickAHRS/matlabmex.cpp MadgwickAHRS/MadgwickAHRS.cpp;
+else
+    disp('"MadgwickAHRS/MadgwickAHRS.cpp" or "MadgwickAHRS/MadgwickAHRS.h" not found.');
+    disp('To get reference algorithms, download their implementations from here:');
+    disp('http://www.x-io.co.uk/open-source-imu-and-ahrs-algorithms/');
+end
+
+if (exist('MahonyAHRS/MahonyAHRS.cpp', 'file') && exist('MahonyAHRS/MahonyAHRS.h', 'file'))
+    disp('Compiling Mahony AHRS...');
+    mex -lm -I/usr/local/matlab/extern/include -I./MahonyAHRS ...
+        -output ../Mahony_IMU_C MahonyAHRS/matlabmex.cpp MahonyAHRS/MahonyAHRS.cpp;
+else
+    disp('"MahonyAHRS/MahonyAHRS.cpp" or "MahonyAHRS/MahonyAHRS.h" not found.');
+    disp('To get reference algorithms, download their implementations from here:');
+    disp('http://www.x-io.co.uk/open-source-imu-and-ahrs-algorithms/');
+end

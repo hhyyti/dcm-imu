@@ -24,7 +24,7 @@ classdef DCM_IMU < handle
 % DCM_IMU Implementation of Hyyti's IMU algorithm
 %
 %   If you use the algorithm in any scientific context, please cite: 
-%   Heikki Hyyti and Arto Visala, “A DCM Based Attitude Estimation Algorithm for Low-Cost MEMS IMUs,” 
+%   Heikki Hyyti and Arto Visala, "A DCM Based Attitude Estimation Algorithm for Low-Cost MEMS IMUs,"
 %   International Journal of Navigation and Observation, vol. 2015, Article ID 503814, 18 pages, 2015. 
 %   http://dx.doi.org/10.1155/2015/503814  
 %
@@ -49,6 +49,7 @@ classdef DCM_IMU < handle
         P = [];                     % estimate covariance (these are initialized in constructor below)
         H = [];                     % observation model (static)
         Q = [];                     % proces noise covariance (static part)
+        first_row = [1 0 0]';       % first row of of the rotation matrix (for yaw angle estimate)
     end
 
     %% Public methods
@@ -75,6 +76,7 @@ classdef DCM_IMU < handle
         end
         function obj = UpdateIMU(obj, Gyroscope, Accelerometer, SamplePeriod)
             x = obj.state;
+            x_last = x;
             Q_ = SamplePeriod^2 * obj.Q; %Process noise covariance with time dependent noise
             
             % control input (angular velocities from gyroscopes)
@@ -139,31 +141,58 @@ classdef DCM_IMU < handle
             % compute Euler angles (not exactly a part of the extended Kalman filter)
             % yaw integration through full rotation matrix
             u_nb = u - x(4:6);
+            if (true)
+                % Fill rotation matrix from angular values
+                
+                % cy = cos(obj.yaw); %old angles (last state before integration)
+                % sy = sin(obj.yaw);
+                % cp = cos(obj.pitch);
+                % sp = sin(obj.pitch);
+                % cr = cos(obj.roll);
+                % sr = sin(obj.roll);
+                 
+                % % compute needed parts of rotation matrix R
+                % R11 = cy*cp;
+                % R12 = cy*sp*sr-sy*cr;
+                % R13 = cy*sp*cr+sy*sr;
+                % R21 = sy*cp;
+                % R22 = sy*sp*sr+cy*cr;
+                % R23 = sy*sp*cr-cy*sr;
+               
+                % compute needed parts of rotation matrix R using state x and yaw
+                cy = cos(obj.yaw); %old yaw angle (last state before integration)
+                sy = sin(obj.yaw);
+                d = sqrt(x_last(2)^2 + x_last(3)^2);
+                d_inv = 1 / d;
 
-            cy = cos(obj.yaw); %old angles (last state before integration)
-            sy = sin(obj.yaw);
-            cp = cos(obj.pitch);
-            sp = sin(obj.pitch);
-            cr = cos(obj.roll);
-            sr = sin(obj.roll);
+                % compute needed parts of rotation matrix R (state and angle based version, equivalent with the commented version above)
+                R11 = cy * d;
+                R12 = -(x_last(3)*sy + x_last(1)*x_last(2)*cy) * d_inv;
+                R13 = (x_last(2)*sy - x_last(1)*x_last(3)*cy) * d_inv;
+                R21 = sy * d;
+                R22 = (x_last(3)*cy - x_last(1)*x_last(2)*sy) * d_inv;
+                R23 = -(x_last(2)*cy + x_last(1)*x_last(3)*sy) * d_inv;
 
-            % compute needed parts of rotation matrix R
-            R11 = cy*cp;
-            R12 = cy*sp*sr-sy*cr;
-            R13 = cy*sp*cr+sy*sr;
-            R21 = sy*cp;
-            R22 = sy*sp*sr+cy*cr;
-            R23 = sy*sp*cr-cy*sr;
+                % update needed parts of R for yaw computation
+                R11_new = R11 + SamplePeriod*(u_nb(3)*R12 - u_nb(2)*R13);
+                R21_new = R21 + SamplePeriod*(u_nb(3)*R22 - u_nb(2)*R23);
+
+                obj.yaw = atan2(R21_new,R11_new);
+            else
+                % alternative method estimating the whole rotation matrix
+                % integrate full rotation matrix (using first row estimate in memory)
+                x1 = obj.first_row + SamplePeriod*UX'*obj.first_row; %rotate x1 by x1 x u_nb
+                x2 = C3X * x1; %second row x2 = (state x x1)
+                x2 = x2 ./ sqrt(x2(1)^2 + x2(2)^2 + x2(3)^2); % normalize length of the second row
+                x1 = C3X' * x2; %recalculate first row x1 = (x2 * state) (ensure perpendicularity)
+                obj.first_row = x1 ./ sqrt(x1(1)^2 + x1(2)^2 + x1(3)^2); % normalize length
+                obj.yaw = atan2(x2(1),obj.first_row(1));
+            end
             
-            % update needed parts of R for yaw computation
-            R11_new = R11 + SamplePeriod*(u_nb(3)*R12 - u_nb(2)*R13);
-            R21_new = R21 + SamplePeriod*(u_nb(3)*R22 - u_nb(2)*R23);
-            obj.yaw = atan2(R21_new,R11_new);
-
             %compute new pitch and roll angles from a posteriori states
             obj.pitch = asin(-x(1));
-            obj.roll = atan2(x(2),x(3));
-
+            obj.roll = atan2(x(2),x(3));          
+            
             % save the estimated non-gravitational acceleration
             obj.a = z - x(1:3)*obj.g0; % acceleration estimate (g reduced)    
         end

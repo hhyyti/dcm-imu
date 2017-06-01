@@ -23,37 +23,28 @@
 #include "mex.h"
 #include "matrix.h"
 #include <math.h>
-#include "MahonyAHRS.h"
+#include "DCM_IMU_uC.h"
 
 using namespace std;
 
 extern void _main();
 
-const int numInputArgs  = 2;
-const int numOutputArgs = 1;
-const int inputCols[2] = {3, 3};
+const int numInputArgs  = 3;
+const int numOutputArgs = 4;
+const int inputCols[3] = {3, 3, 1};
 
 // mexFunction for Matlab
 // -----------------------------------------------------------------
 void mexFunction (int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 
-	if (sizeof(float) * CHAR_BIT != 32) { //Cause error on systems with 64bit float as invSqrt will not work properly!
-		mexErrMsgTxt("32 bit floats are required for invSqrt in the included code!");
-		return;
-	}
-
-	if (sizeof(long) * CHAR_BIT != 32) { //Madgwick's code uses long for 32bit signed integer. It is 64bit in LP64 architecture and the invSqrt miscalculates.
-		mexPrintf("Warning: invSqrt does not work with %d bit longs\nPlease change it to int or int32_t in the included code!\n", sizeof(long) * CHAR_BIT);
-	}
-
 	// Check to see if we have the correct number of input and output
 	// arguments.
 	if (nrhs != numInputArgs) {
-		mexErrMsgTxt("Incorrect number of input arguments, should be 2");
+		mexErrMsgTxt("Incorrect number of input arguments, should be 3");
 		return;
 	}
 	if (nlhs != numOutputArgs) {
-		mexErrMsgTxt("Incorrect number of output arguments, should be 1");
+		mexErrMsgTxt("Incorrect number of output arguments, should be 4");
 		return;
 	}
 
@@ -63,28 +54,43 @@ void mexFunction (int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 		if (rows > mxGetM(prhs[i])) rows = mxGetM(prhs[i]);
 
 		if (inputCols[i] != mxGetN(prhs[i])) {
-			mexErrMsgTxt("Incorrect number of input columns, should be 3 and 3");
+			mexErrMsgTxt("Incorrect number of input columns, should be 3, 3 and 1");
 			return;
 		}
 	}
 
+	// Create DCM_IMU with default parameters
+	DCM_IMU_uC imu;
 
 	// Create the output structures.
-	plhs[0] = mxCreateDoubleMatrix(rows,4,mxREAL); //q
+	plhs[0] = mxCreateDoubleMatrix(rows,6,mxREAL); //x
+	plhs[1] = mxCreateDoubleMatrix(rows,3,mxREAL); //ypr
+	plhs[2] = mxCreateDoubleMatrix(rows,3,mxREAL); //a
+	plhs[3] = mxCreateDoubleMatrix(rows,6,mxREAL); //diag(P)
 
 	//inputs for one iteration
-	double gyro[3];
-	double acc[3];
+	float gyro[3];
+	float acc[3];
+	float dt;
 
 	//input pointers
 	double *gyro_input = mxGetPr(prhs[0]);
 	double *acc_input = mxGetPr(prhs[1]);
+	double *time_input = mxGetPr(prhs[2]);
 
 	//outputs for one iteration
-	double q[4];
+	float state[6];
+	float ypr[3];
+	float a[3];
+	float P[36];
+
 
 	//output pointers
-	double *q_output = mxGetPr(plhs[0]);
+	double *state_output = mxGetPr(plhs[0]);
+	double *ypr_output = mxGetPr(plhs[1]);
+	double *a_output = mxGetPr(plhs[2]);
+	double *diagP_output = mxGetPr(plhs[3]);
+
 
 	//(note matrix is organized differently in matlab and c++ ... )
 	//input[(rows*collIndex)+rowIndex]
@@ -95,20 +101,29 @@ void mexFunction (int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]) {
 			gyro[j] = gyro_input[(rows*j) + i];
 			acc[j] = acc_input[(rows*j) + i];
 		}
+		dt = time_input[i];
 
 		//update one iteration
-		MahonyAHRSupdateIMU(gyro[0], gyro[1], gyro[2], acc[0], acc[1], acc[2]);
+		imu.updateIMU(gyro, acc, dt);
 
 		//get output from filter
-		q[0] = q0;
-		q[1] = q1;
-		q[2] = q2;
-		q[3] = q3;
+		imu.getState(state);
+		imu.getCovariance(P);
+		imu.getNGAcc(a);
+		ypr[0] = imu.getYaw();
+		ypr[1] = imu.getPitch();
+		ypr[2] = imu.getRoll();
 
 		//set output
-		for (int j = 0; j < 4; ++j) {
-			q_output[(rows*j) + i] = q[j];
+		for (int j = 0; j < 6; ++j) {
+			state_output[(rows*j) + i] = state[j];
+			diagP_output[(rows*j) + i] = P[7*j];
 		}
+		for (int j = 0; j < 3; ++j) {
+			ypr_output[(rows*j) + i] = ypr[j];
+			a_output[(rows*j) + i] = a[j];
+		}
+
 	}
 }
 
