@@ -22,8 +22,8 @@
 
 disp(' ');
 disp('If you use the algorithm in any scientific context, please cite:');
-disp('Heikki Hyyti and Arto Visala, “A DCM Based Attitude Estimation Algorithm');
-disp('for Low-Cost MEMS IMUs,” International Journal of Navigation and Observation,');
+disp('Heikki Hyyti and Arto Visala, "A DCM Based Attitude Estimation Algorithm');
+disp('for Low-Cost MEMS IMUs," International Journal of Navigation and Observation,');
 disp('vol. 2015, Article ID 503814, 18 pages, 2015. http://dx.doi.org/10.1155/2015/503814');
 disp(' ');
 
@@ -49,6 +49,8 @@ addedGyroBias = 0;
 
 % load measurement data
 data = load('allData.mat');
+
+if (~exist('figures', 'dir')); mkdir('figures'); end;
 
 ILtime = data.InertiaLink.tv_sec + (data.InertiaLink.tv_msec/1000);
 SFtime = data.SparkFun6DOF.tv_sec + (data.SparkFun6DOF.tv_usec / 1000000);
@@ -122,7 +124,7 @@ pitch_in_IL = pitch_in_IL.Data;
 roll_in_IL = resample(timeseries(roll, Ktime),time);
 roll_in_IL = roll_in_IL.Data;
 
-%computing ypr for InertiaLink internal estimates (Rotation matrix R = -M̈́')
+%computing ypr for InertiaLink internal estimates (Rotation matrix R = -M')
 [yaw_IL, pitch_IL, roll_IL] = yawpitchroll(-data.InertiaLink.M11, ...
     data.InertiaLink.M12, -data.InertiaLink.M13, -data.InertiaLink.M23, ...
     -data.InertiaLink.M33);
