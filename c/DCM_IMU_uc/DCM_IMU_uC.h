@@ -1,5 +1,5 @@
 //============================================================================
-// Copyright (C) 2017, Heikki Hyyti
+// Copyright (C) 2020, Heikki Hyyti
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -48,10 +48,14 @@
 #define DEFAULT_q_dcm2_init (1*1)
 #define DEFAULT_q_gyro_bias2_init (0.1*0.1)
 
+#define VARIANCE_MIN_LIMIT (0.0001*0.0001) //set this to a small positive number or 0 to disable the feature.
+
+
 //! DCM_IMU_uC class.
 /*!
  *  The DCM-IMU algorithm is designed for fusing low-cost triaxial MEMS gyroscope and accelerometer measurements. An extended Kalman filter is used to estimate attitude in direction cosine matrix (DCM) formation and gyroscope biases online. A variable measurement covariance method is implemented for acceleration measurements to ensure robustness against transient non-gravitational accelerations which usually induce errors to attitude estimate in ordinary IMU-algorithms.
  *  If you use the algorithm in any scientific context, please cite: Heikki Hyyti and Arto Visala, "A DCM Based Attitude Estimation Algorithm for Low-Cost MEMS IMUs," International Journal of Navigation and Observation, vol. 2015, Article ID 503814, 18 pages, 2015. http://dx.doi.org/10.1155/2015/503814
+ *  This updated version has forced symmetry of covariance matrices that reduces computational complexity of the filter significantly. In addition, it divides measurement with g0 before feeding it to filter which increases the stability as covariance matrix update is done with smaller weights (g0^6 vs 1). For further safety, the variance of states is limited to a small postive value.
  */
 class DCM_IMU_uC {
 
@@ -124,7 +128,7 @@ public:
 	inline float getRoll() { return roll; }
 
 private:
-	float g0, g0_2;
+	float g0, inv_g0, inv_g0_2;
 	float x0, x1, x2, x3, x4, x5;
 	float q_dcm2;
 	float q_gyro_bias2;
@@ -133,11 +137,12 @@ private:
 	float a0, a1, a2;
 	float yaw, pitch, roll;
 	float P00, P01, P02, P03, P04, P05;
-	float P10, P11, P12, P13, P14, P15;
-	float P20, P21, P22, P23, P24, P25;
-	float P30, P31, P32, P33, P34, P35;
-	float P40, P41, P42, P43, P44, P45;
-	float P50, P51, P52, P53, P54, P55;
+	float P11, P12, P13, P14, P15;
+	float P22, P23, P24, P25;
+	float P33, P34, P35;
+	float P44, P45;
+	float P55;
+	float fr0, fr1, fr2;
 };
 
 #endif /* DCM_IMU_UC_H */

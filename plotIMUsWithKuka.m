@@ -148,7 +148,7 @@ gyro2 = gyro2 + addedGyroBias*ones(size(gyro2));
 tic();
 if (use_C_versions) 
     [x_hist1, ypr_hist1, a_hist1, P_diag_hist1] = ...
-        DCM_IMU_C(gyro1, acc1, SFdeltaTime);
+        DCM_IMU_uC(gyro1, acc1, SFdeltaTime);
 else
     IMU_DCM1 = DCM_IMU();
     x_hist1 = zeros(length(SFtime), 6);
@@ -166,7 +166,7 @@ tDCM1 = toc()
 tic();
 if (use_C_versions) 
     [x_hist2, ypr_hist2, a_hist2, P_diag_hist2] = ...
-        DCM_IMU_C(gyro2, acc2, ILdeltaTime);
+        DCM_IMU_uC(gyro2, acc2, ILdeltaTime);
 else
     IMU_DCM2 = DCM_IMU();
     x_hist2 = zeros(length(ILtime), 6);
