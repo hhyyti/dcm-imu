@@ -133,10 +133,10 @@ void DCM_IMU_uC::updateIMU(const float *Gyroscope, const float *Accelerometer, c
 	float y1 = z1-x_1;
 	float y2 = z2-x_2;
 
-	float a_len = sqrt(y0*y0+y1*y1+y2*y2) * g0;
+	float a_len = sqrtf(y0*y0+y1*y1+y2*y2) * g0;
 	float r_adab = (r_acc2 + a_len*r_a2) * inv_g0_2;
 
-	// Covariance innovation
+	// innovation covariance
 	float S00 = P_00 + r_adab;
 	float S01 = P_01;
 	float S02 = P_02;
@@ -144,26 +144,34 @@ void DCM_IMU_uC::updateIMU(const float *Gyroscope, const float *Accelerometer, c
 	float S12 = P_12;
 	float S22 = P_22 + r_adab;
 
+        // verify that the innovation covariance is large enough
+	if (S00 < VARIANCE_MIN_LIMIT) S00 = VARIANCE_MIN_LIMIT;
+	if (S11 < VARIANCE_MIN_LIMIT) S11 = VARIANCE_MIN_LIMIT;
+	if (S22 < VARIANCE_MIN_LIMIT) S22 = VARIANCE_MIN_LIMIT;
+
+	// determinant of S
+	float det_S = -S00*(S12*S12) - (S02*S02)*S11 - (S01*S01)*S22 + S01*S02*S12*2.0f + S00*S11*S22;
+
 	// Kalman gain
-	float invPart = 1.0f / (S00*(S12*S12)+(S02*S02)*S11+(S01*S01)*S22-S01*S02*S12*2.0f-S00*S11*S22);
-	float K00 = (S02*(P_02*S11-P_01*S12)-S01*(P_02*S12-P_01*S22)+P_00*(S12*S12)-P_00*S11*S22)*invPart;
-	float K01 = (S12*(P_02*S00-P_00*S02)-S01*(P_02*S02-P_00*S22)+P_01*(S02*S02)-P_01*S00*S22)*invPart;
-	float K02 = (S12*(P_01*S00-P_00*S01)-S02*(P_01*S01-P_00*S11)+P_02*(S01*S01)-P_02*S00*S11)*invPart;
-	float K10 = (S02*(P_12*S11-P_11*S12)-S01*(P_12*S12-P_11*S22)+P_01*(S12*S12)-P_01*S11*S22)*invPart;
-	float K11 = (S12*(P_12*S00-P_01*S02)-S01*(P_12*S02-P_01*S22)+P_11*(S02*S02)-P_11*S00*S22)*invPart;
-	float K12 = -(S12*(P_01*S01-P_11*S00)+S02*(P_11*S01-P_01*S11)-P_12*(S01*S01)+P_12*S00*S11)*invPart;
-	float K20 = -(S02*(P_12*S12-P_22*S11)+S01*(P_22*S12-P_12*S22)-P_02*(S12*S12)+P_02*S11*S22)*invPart;
-	float K21 = -(S12*(P_02*S02-P_22*S00)+S01*(P_22*S02-P_02*S22)-P_12*(S02*S02)+P_12*S00*S22)*invPart;
-	float K22 = -(S12*(P_02*S01-P_12*S00)+S02*(P_12*S01-P_02*S11)-P_22*(S01*S01)+P_22*S00*S11)*invPart;
-	float K30 = -(S02*(P_13*S12-P_23*S11)+S01*(P_23*S12-P_13*S22)-P_03*(S12*S12)+P_03*S11*S22)*invPart;
-	float K31 = -(S12*(P_03*S02-P_23*S00)+S01*(P_23*S02-P_03*S22)-P_13*(S02*S02)+P_13*S00*S22)*invPart;
-	float K32 = -(S12*(P_03*S01-P_13*S00)+S02*(P_13*S01-P_03*S11)-P_23*(S01*S01)+P_23*S00*S11)*invPart;
-	float K40 = -(S02*(P_14*S12-P_24*S11)+S01*(P_24*S12-P_14*S22)-P_04*(S12*S12)+P_04*S11*S22)*invPart;
-	float K41 = -(S12*(P_04*S02-P_24*S00)+S01*(P_24*S02-P_04*S22)-P_14*(S02*S02)+P_14*S00*S22)*invPart;
-	float K42 = -(S12*(P_04*S01-P_14*S00)+S02*(P_14*S01-P_04*S11)-P_24*(S01*S01)+P_24*S00*S11)*invPart;
-	float K50 = -(S02*(P_15*S12-P_25*S11)+S01*(P_25*S12-P_15*S22)-P_05*(S12*S12)+P_05*S11*S22)*invPart;
-	float K51 = -(S12*(P_05*S02-P_25*S00)+S01*(P_25*S02-P_05*S22)-P_15*(S02*S02)+P_15*S00*S22)*invPart;
-	float K52 = -(S12*(P_05*S01-P_15*S00)+S02*(P_15*S01-P_05*S11)-P_25*(S01*S01)+P_25*S00*S11)*invPart;
+	float invPart = 1.0f / det_S;
+	float K00 = -(S02*(P_02*S11-P_01*S12)-S01*(P_02*S12-P_01*S22)+P_00*(S12*S12)-P_00*S11*S22)*invPart;
+	float K01 = -(S12*(P_02*S00-P_00*S02)-S01*(P_02*S02-P_00*S22)+P_01*(S02*S02)-P_01*S00*S22)*invPart;
+	float K02 = -(S12*(P_01*S00-P_00*S01)-S02*(P_01*S01-P_00*S11)+P_02*(S01*S01)-P_02*S00*S11)*invPart;
+	float K10 = -(S02*(P_12*S11-P_11*S12)-S01*(P_12*S12-P_11*S22)+P_01*(S12*S12)-P_01*S11*S22)*invPart;
+	float K11 = -(S12*(P_12*S00-P_01*S02)-S01*(P_12*S02-P_01*S22)+P_11*(S02*S02)-P_11*S00*S22)*invPart;
+	float K12 = (S12*(P_01*S01-P_11*S00)+S02*(P_11*S01-P_01*S11)-P_12*(S01*S01)+P_12*S00*S11)*invPart;
+	float K20 = (S02*(P_12*S12-P_22*S11)+S01*(P_22*S12-P_12*S22)-P_02*(S12*S12)+P_02*S11*S22)*invPart;
+	float K21 = (S12*(P_02*S02-P_22*S00)+S01*(P_22*S02-P_02*S22)-P_12*(S02*S02)+P_12*S00*S22)*invPart;
+	float K22 = (S12*(P_02*S01-P_12*S00)+S02*(P_12*S01-P_02*S11)-P_22*(S01*S01)+P_22*S00*S11)*invPart;
+	float K30 = (S02*(P_13*S12-P_23*S11)+S01*(P_23*S12-P_13*S22)-P_03*(S12*S12)+P_03*S11*S22)*invPart;
+	float K31 = (S12*(P_03*S02-P_23*S00)+S01*(P_23*S02-P_03*S22)-P_13*(S02*S02)+P_13*S00*S22)*invPart;
+	float K32 = (S12*(P_03*S01-P_13*S00)+S02*(P_13*S01-P_03*S11)-P_23*(S01*S01)+P_23*S00*S11)*invPart;
+	float K40 = (S02*(P_14*S12-P_24*S11)+S01*(P_24*S12-P_14*S22)-P_04*(S12*S12)+P_04*S11*S22)*invPart;
+	float K41 = (S12*(P_04*S02-P_24*S00)+S01*(P_24*S02-P_04*S22)-P_14*(S02*S02)+P_14*S00*S22)*invPart;
+	float K42 = (S12*(P_04*S01-P_14*S00)+S02*(P_14*S01-P_04*S11)-P_24*(S01*S01)+P_24*S00*S11)*invPart;
+	float K50 = (S02*(P_15*S12-P_25*S11)+S01*(P_25*S12-P_15*S22)-P_05*(S12*S12)+P_05*S11*S22)*invPart;
+	float K51 = (S12*(P_05*S02-P_25*S00)+S01*(P_25*S02-P_05*S22)-P_15*(S02*S02)+P_15*S00*S22)*invPart;
+	float K52 = (S12*(P_05*S01-P_15*S00)+S02*(P_15*S01-P_05*S11)-P_25*(S01*S01)+P_25*S00*S11)*invPart;
 
 	// update a posteriori
 	x0 = x_0 + K00*y0 + K01*y1 + K02*y2;
@@ -214,7 +222,7 @@ void DCM_IMU_uC::updateIMU(const float *Gyroscope, const float *Accelerometer, c
 	float P__55 = P_55+(K50*K50)*r_adab+(K51*K51)*r_adab+(K52*K52)*r_adab+K50*(-P_05+K50*P_00+K51*P_01+K52*P_02)+K51*(-P_15+K50*P_01+K51*P_11+K52*P_12)+K52*(-P_25+K50*P_02+K51*P_12+K52*P_22)-K50*P_05-K51*P_15-K52*P_25;
 
 	// Normalization of covariance
-	float len = sqrt(x0*x0 + x1*x1 + x2*x2);
+	float len = sqrtf(x0*x0 + x1*x1 + x2*x2);
 	float invlen3 = 1.0 / (len*len*len);
 	float invlen32 = (invlen3*invlen3);
 
@@ -244,6 +252,14 @@ void DCM_IMU_uC::updateIMU(const float *Gyroscope, const float *Accelerometer, c
 	P45 = P__45;
 	P55 = P__55;
 
+        // increment covariance slightly at each iteration (nonoptimal but keeps the filter stable against rounding errors in 32bit float computation)
+	P00 += VARIANCE_SAFETY_INCREMENT;
+	P11 += VARIANCE_SAFETY_INCREMENT;
+	P22 += VARIANCE_SAFETY_INCREMENT;
+	P33 += VARIANCE_SAFETY_INCREMENT;
+	P44 += VARIANCE_SAFETY_INCREMENT;
+	P55 += VARIANCE_SAFETY_INCREMENT;
+
 	// variance is required to be always at least the minimum value
 	if (P00 < VARIANCE_MIN_LIMIT) P00 = VARIANCE_MIN_LIMIT;
 	if (P11 < VARIANCE_MIN_LIMIT) P11 = VARIANCE_MIN_LIMIT;
@@ -265,9 +281,9 @@ void DCM_IMU_uC::updateIMU(const float *Gyroscope, const float *Accelerometer, c
 	float u_nb2 = u2 - x5;
 
 	if (true) {
-		float cy = cos(yaw); //old angles (last state before integration)
-		float sy = sin(yaw);
-		float d = sqrt(x_last[1]*x_last[1] + x_last[2]*x_last[2]);
+		float cy = cosf(yaw); //old angles (last state before integration)
+		float sy = sinf(yaw);
+		float d = sqrtf(x_last[1]*x_last[1] + x_last[2]*x_last[2]);
 		float d_inv = 1.0f / d;
 
 		// compute needed parts of rotation matrix R (state and angle based version, equivalent with the commented version above)
@@ -281,7 +297,7 @@ void DCM_IMU_uC::updateIMU(const float *Gyroscope, const float *Accelerometer, c
 		// update needed parts of R for yaw computation
 		float R11_new = R11 + h*(u_nb2*R12 - u_nb1*R13);
 		float R21_new = R21 + h*(u_nb2*R22 - u_nb1*R23);
-		yaw = atan2(R21_new,R11_new);
+		yaw = atan2f(R21_new,R11_new);
 	}
 	else { //alternative method estimating the whole rotation matrix
 		//integrate full rotation matrix (using first row estimate in memory)
@@ -292,7 +308,7 @@ void DCM_IMU_uC::updateIMU(const float *Gyroscope, const float *Accelerometer, c
 		float sr2 = -fr0*x_last[1]+fr1*x_last[0]+h*(x_last[0]*(fr2*u_nb0-fr0*u_nb2)+x_last[1]*(fr2*u_nb1-fr1*u_nb2));
 
 		// normalize the second row
-		float invlen = 1.0f / sqrt(sr0*sr0 + sr1*sr1 + sr2*sr2);
+		float invlen = 1.0f / sqrtf(sr0*sr0 + sr1*sr1 + sr2*sr2);
 		sr0 *= invlen;
 		sr1 *= invlen;
 		sr2 *= invlen;
@@ -303,18 +319,18 @@ void DCM_IMU_uC::updateIMU(const float *Gyroscope, const float *Accelerometer, c
 		fr2 = sr0*x_last[1] - sr1*x_last[0];
 
 		// normalize the first row
-		invlen = 1.0f / sqrt(fr0*fr0 + fr1*fr1 + fr2*fr2);
+		invlen = 1.0f / sqrtf(fr0*fr0 + fr1*fr1 + fr2*fr2);
 		fr0 *= invlen;
 		fr1 *= invlen;
 		fr2 *= invlen;
 
 		// calculate yaw from first and second row
-		yaw = atan2(sr0,fr0);
+		yaw = atan2f(sr0,fr0);
 	}
 
 	// compute new pitch and roll angles from a posteriori states
-	pitch = asin(-x0);
-	roll = atan2(x1,x2);
+	pitch = asinf(-x0);
+	roll = atan2f(x1,x2);
 
 	// save the estimated non-gravitational acceleration
 	a0 = (z0-x0)*g0;

@@ -49,13 +49,14 @@
 #define DEFAULT_q_gyro_bias2_init (0.1*0.1)
 
 #define VARIANCE_MIN_LIMIT (0.0001*0.0001) //set this to a small positive number or 0 to disable the feature.
-
+#define VARIANCE_SAFETY_INCREMENT (0.00001*0.00001) //set this to a small positive number or 0 to disable the feature.
 
 //! DCM_IMU_uC class.
 /*!
  *  The DCM-IMU algorithm is designed for fusing low-cost triaxial MEMS gyroscope and accelerometer measurements. An extended Kalman filter is used to estimate attitude in direction cosine matrix (DCM) formation and gyroscope biases online. A variable measurement covariance method is implemented for acceleration measurements to ensure robustness against transient non-gravitational accelerations which usually induce errors to attitude estimate in ordinary IMU-algorithms.
  *  If you use the algorithm in any scientific context, please cite: Heikki Hyyti and Arto Visala, "A DCM Based Attitude Estimation Algorithm for Low-Cost MEMS IMUs," International Journal of Navigation and Observation, vol. 2015, Article ID 503814, 18 pages, 2015. http://dx.doi.org/10.1155/2015/503814
- *  This updated version has forced symmetry of covariance matrices that reduces computational complexity of the filter significantly. In addition, it divides measurement with g0 before feeding it to filter which increases the stability as covariance matrix update is done with smaller weights (g0^6 vs 1). For further safety, the variance of states is limited to a small postive value.
+ *  This updated version of micro controller c code has forced symmetry of covariance matrices that reduces computational complexity of the filter significantly. In addition, the code divides measurement with g0 before feeding it to filter which increases the stability because covariance matrix update is done with smaller weights (1 vs g0^6).
+ *  For further safety, the variance of states is limited to a small postive value and a small non-corelating noise is added to each state to keep the filter stable against rounding errors. Both of these safety additions may be disabled by defining the values to 0 in this file.
  */
 class DCM_IMU_uC {
 
